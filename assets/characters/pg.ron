@@ -1,0 +1,55 @@
+Character(
+    name: "Test",
+    sprite_sheet: "sprites/stick.png",
+    hurtbox: ( x: 0., y: 0., length: 10., height: 10. ),
+    moveset: (
+        light: (
+            state: LightAttack,
+            damage: 80,
+            hit_stun_frames: 2,
+            animation: (
+                frame_data: [
+                    //preparing punch
+                    (index: 1, frames: 1),
+                    //punch out
+                    (index: 2, frames: 2),
+                    //retriving punch
+                    (index: 3, frames: 1),
+                    (index: 4, frames: 1),
+                ],
+                config: (
+                    startup_frames: 1,
+                    active_frames: 2,
+                    recovery_frames: 2,
+                ),
+            ),
+            hitbox: ( x: 10., y: 10., length: 10., height: 10. ),
+            //movement
+            //spawn
+            //hurtboc
+        ),
+        heavy: (
+            state: HeavyAttack,
+            damage: 80,
+            hit_stun_frames: 2,
+            //animation that last 5 frames, only 2 frames have hitbox, and it starts after the first one
+            animation: (
+                frame_data: [
+                    //preparing punch
+                    (index: 1, frames: 1),
+                    //punch out
+                    (index: 2, frames: 2),
+                    //retriving punch
+                    (index: 3, frames: 1),
+                    (index: 4, frames: 1),
+                ],
+                config: (
+                    startup_frames: 1,
+                    active_frames: 2,
+                    recovery_frames: 2,
+                ),
+            ),
+            hitbox: ( x: 10., y: 10., length: 10., height: 10. ),
+        )
+    )
+)
