@@ -1,4 +1,4 @@
-use bevy::{prelude::*, window::{WindowResolution, EnabledButtons}, asset::LoadedFolder};
+use bevy::{asset::LoadedFolder, gizmos::aabb::AabbGizmoPlugin, prelude::*, window::{EnabledButtons, WindowResolution}};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
@@ -11,8 +11,8 @@ use character::{*, animation::*};
 mod collisions;
 use collisions::*;
 
-const MAX_WINDOW_HEIGHT: f32 = 500.;
-const MAX_WINDOW_WIDTH: f32 = 500.;
+const MAX_WINDOW_HEIGHT: f32 = 1920.;
+const MAX_WINDOW_WIDTH: f32 = 1080.;
 
 fn main() {
     App::new()
@@ -51,6 +51,7 @@ fn main() {
         .add_systems(Update, (
                 keyboard_input_system,
                 execute_animations,
+                execute_hitboxes,
                 debug
             ).run_if(in_state(GameState::Ready))
         )
@@ -58,10 +59,14 @@ fn main() {
 }
 
 
-fn debug(query: Query<&PlayerAnimationManagement>) {
-    for animation in &query {
-        println!("{:?}", animation.state);
+fn debug(
+    mut gizmos: Gizmos,
+    query: Query<&Trigger>
+) {
+    for hitbox in &query {
+        gizmos.rect_2d(Vec2::new(hitbox.x, hitbox.y), 0., Vec2::new(hitbox.length, hitbox.height), Color::RED);
     }
+
 }
 
 
@@ -137,7 +142,7 @@ pub fn spawn_player(
     let path = &character.sprite_sheet;
     
     let texture: Handle<Image> = asset_server.load(path);
-    let layout = TextureAtlasLayout::from_grid(UVec2::new(46, 74), 3, 2, None, None);
+    let layout = TextureAtlasLayout::from_grid(Vec2::splat(64.), 3, 3, None, None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
 

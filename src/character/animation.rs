@@ -20,7 +20,9 @@ impl PlayerAnimationManagement {
         let mut animations: HashMap<AnimationState, (AnimationDataTimer, Option<Attack>)> = HashMap::new();
 
         //to add to teh config file
-        animations.insert(AnimationState::Idle, (AnimationDataTimer::new(AnimationData::new(vec![FrameData::new(1, 1), FrameData::new(2, 1), FrameData::new(2, 1)], AnimationConfig::default())), None)); 
+        animations.insert(AnimationState::Idle, (AnimationDataTimer::new(AnimationData::new(vec![FrameData::new(0, 6), FrameData::new(1, 6)], AnimationConfig::default())), None)); 
+        animations.insert(AnimationState::Forward, (AnimationDataTimer::new(AnimationData::new(vec![FrameData::new(2, 2), FrameData::new(3, 2)], AnimationConfig::default())), None)); 
+        animations.insert(AnimationState::Backward, (AnimationDataTimer::new(AnimationData::new(vec![FrameData::new(2, 2), FrameData::new(3, 2)], AnimationConfig::default())), None)); 
 
         let light_data = moveset.light.animation.clone();
         let heavy_data = moveset.heavy.animation.clone();
@@ -41,8 +43,8 @@ impl PlayerAnimationManagement {
                 match state {
                     //...and i want to link an attack after it
                     AnimationState::LightAttack | AnimationState::HeavyAttack => {
-                        //..and it falls withing the recovery frames
-                        if self.get_current_animation().0.is_withing_recovery(0) {
+                        //..and it falls within the recovery frames
+                        if self.get_current_animation().0.is_within_recovery(0) {
                             //..it gets buffered
                             self.next_state = Some(state);
                             return true
@@ -53,6 +55,9 @@ impl PlayerAnimationManagement {
                     //then it just ignores the move and the animation
                     _ => { } 
                 }
+            },
+
+            AnimationState::LightAttack | AnimationState::HeavyAttack if self.next_state.is_some() => {
             },
             //if current state is not critical
             //therefore is not an attack
@@ -71,6 +76,7 @@ impl PlayerAnimationManagement {
     pub fn next_state(&mut self) {
         if let Some(next) = &self.next_state {
             self.state = next.clone();
+            self.next_state = None;
         } else {
             self.state = AnimationState::default();
         }
@@ -104,7 +110,7 @@ pub struct AnimationDataTimer {
 impl AnimationDataTimer {
    pub fn new(animation_data: AnimationData) -> Self {
        //first animation index in Atlas
-       let index = animation_data.frame_data.get(0).unwrap().index;
+       let index = animation_data.frame_data.first().unwrap().index;
        Self {
            animation_data,
            index,
@@ -113,25 +119,24 @@ impl AnimationDataTimer {
    } 
 
    pub fn reset(&mut self) {
-       //first animation index in Atlas
-       self.index = self.animation_data.frame_data.get(0).unwrap().index;
+       self.index = self.animation_data.frame_data.first().unwrap().index;
        self.frame_timer = Timer::new(Duration::from_secs(0), TimerMode::Once);
    } 
 
-   pub fn is_withing_active(&self) -> bool {
+   pub fn is_within_active(&self) -> bool {
        let current = self.get_current_frame_count().unwrap();
-       self.get_config().is_withing_active(current)
+       self.get_config().is_within_active(current)
    }
 
-   pub fn is_withing_startup(&self, window: u8) -> bool {
+   pub fn is_within_startup(&self, window: u8) -> bool {
        let current = self.get_current_frame_count().unwrap();
-       self.get_config().is_withing_startup(current, window)
+       self.get_config().is_within_startup(current, window)
    }
 
-   pub fn is_withing_recovery(&self, window: u8) -> bool {
+   pub fn is_within_recovery(&self, window: u8) -> bool {
        let config = self.get_config();
        let current = self.get_current_frame_count().unwrap();
-       config.is_withing_recovery(current, window)
+       config.is_within_recovery(current, window)
    }
 
    pub fn is_just_finished(&self) -> bool {
@@ -147,16 +152,15 @@ impl AnimationDataTimer {
    }
 
    pub fn get_current_frame_data(&self) -> Option<FrameData> {
-       let index = self.index as usize;
-       self.animation_data.frame_data.get(index).cloned()
+       self.animation_data.frame_data.iter().find(|x| x.index == self.index).cloned()
    }
 
    pub fn get_frame_from_index(&self, index: usize) -> Result<u8, String> {
-       if self.animation_data.frame_data.len() <= index {
+       let Some(frame_index) = self.animation_data.frame_data.iter().position(|x| x.index == index as u8) else {
            return Err(format!("Out of index len: {} index: {}", self.animation_data.frame_data.len(), index));
-       }
+       };
 
-       Ok(self.animation_data.frame_data[0..index].iter().fold(0, |acc, x| x.frames + acc))
+       Ok(self.animation_data.frame_data[0..frame_index].iter().fold(0, |acc, x| x.frames + acc))
    }
 }
 
@@ -181,17 +185,29 @@ pub fn execute_animations(
         if anim.frame_timer.just_finished() {
             if atlas.index == anim.animation_data.frame_data.last().unwrap().index as usize {
                 // ...and it IS the last frame, then we move back to the first frame and stop.
-                atlas.index = anim.animation_data.frame_data.first().unwrap().index as usize;
                 player_animation.next_state();
                 player_animation.reset();
+                atlas.index = player_animation.get_current_animation().0.index.into();
+                let anim = &mut player_animation.get_current_animation_mut().0;
+                if let Some(frame_data) = anim.get_current_frame_data() {
+                    anim.frame_timer = frame_data.get_timer();
+                }
             } else {
                 let anim = &mut player_animation.get_current_animation_mut().0;
                 // ...and it is NOT the last frame, then we move to the next frame...
-                atlas.index += 1;
                 anim.index += 1;
+                atlas.index = anim.index.into();
                 // ...and reset the frame timer to start counting all over again
-                anim.frame_timer = anim.get_current_frame_data().unwrap().get_timer();
+                if let Some(frame_data) = anim.get_current_frame_data() {
+                    anim.frame_timer = frame_data.get_timer();
+                }
             }
+        }
+
+        //FIX but i don't quite like it
+        let anim = &mut player_animation.get_current_animation_mut().0;
+        if anim.frame_timer.finished() {
+            anim.reset();
         }
     }
 }
@@ -211,16 +227,17 @@ pub fn execute_hitboxes (
             //shift next
         } else {
             //if is still runing then check for hitboxes
-            if anim.is_withing_active() {
+            if anim.is_within_active() {
                 //spawn hitbox
                 if let Some(attack) = player_animation.get_current_animation().1.clone() {
                     //add attack to trigger or just check what type of attack active in other
                     //player?
+
                     commands.entity(entity).insert(Trigger {
                         x: 2.,
                         y: 2.,
-                        height: 2.,
-                        length: 2.
+                        height: 20.,
+                        length: 20.
                     });
                 }
             }
@@ -237,19 +254,19 @@ pub struct AnimationConfig {
 }
 
 impl AnimationConfig {
-    pub fn is_withing_active(&self, frames: u8) -> bool {
+    pub fn is_within_active(&self, frames: u8) -> bool {
         frames > self.startup_frames && frames <= self.active_frames
     }
 
 
-    pub fn is_withing_startup(&self, frames: u8, window: u8) -> bool {
+    pub fn is_within_startup(&self, frames: u8, window: u8) -> bool {
         frames < self.startup_frames + window
     }
 
-    pub fn is_withing_recovery(&self, frames: u8, window: u8) -> bool {
+    pub fn is_within_recovery(&self, frames: u8, window: u8) -> bool {
         frames > self.startup_frames + self.active_frames + window
             &&
-        frames < self.startup_frames + self.active_frames + self.recovery_frames + window
+        frames <= self.startup_frames + self.active_frames + self.recovery_frames + window
     }
 }
 
@@ -293,5 +310,3 @@ impl AnimationData {
     }
 }
 
-#[test]
-fn test_recovery_frames() { }

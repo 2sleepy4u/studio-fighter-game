@@ -10,11 +10,11 @@ Character(
             animation: (
                 frame_data: [
                     //preparing punch
-                    (index: 4, frames: 32),
+                    (index: 4, frames: 1),
                     //punch out
-                    (index: 5, frames: 16),
+                    (index: 5, frames: 2),
                     //retriving punch
-                    (index: 6, frames: 4),
+                    (index: 6, frames: 2),
                 ],
                 config: (
                     startup_frames: 1,
