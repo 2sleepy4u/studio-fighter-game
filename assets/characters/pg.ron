@@ -2,53 +2,52 @@ Character(
     name: "Test",
     sprite_sheet: "sprites/full.png",
     hurtbox: ( x: 0., y: 0., length: 10., height: 10. ),
+    idle: (
+        fps: 20,
+        indexes: [0, 1]
+    ),
+    forward: (
+        fps: 30,
+        indexes: [0, 1]
+    ),
+    backward: (
+        fps: 30,
+        indexes: [0, 1]
+    ),
     moveset: (
         light: (
-            state: LightAttack,
             damage: 80,
-            hit_stun_frames: 2,
+            hit_stun_frames: 6,
+            hitbox: ( x: 30., y: 10., length: 60., height: 50. ),
             animation: (
-                frame_data: [
-                    //preparing punch
-                    (index: 4, frames: 32),
-                    //punch out
-                    (index: 5, frames: 16),
-                    //retriving punch
-                    (index: 6, frames: 4),
-                ],
-                config: (
+                fps: 5,
+                indexes: [4, 5, 5, 6, 6, 6, 6],
+                options: Some((
                     startup_frames: 1,
                     active_frames: 2,
-                    recovery_frames: 2,
-                ),
+                    recovery_frames: 4,
+                    )
+                )
             ),
-            hitbox: ( x: 10., y: 10., length: 10., height: 10. ),
             //movement
             //spawn
-            //hurtboc
         ),
         heavy: (
-            state: HeavyAttack,
             damage: 80,
-            hit_stun_frames: 2,
-            //animation that last 5 frames, only 2 frames have hitbox, and it starts after the first one
+            hit_stun_frames: 6,
+            hitbox: ( x: 30., y: 10., length: 60., height: 50. ),
             animation: (
-                frame_data: [
-                    //preparing punch
-                    //punch out
-                    (index: 3, frames: 4),
-                    //retriving punch
-                    (index: 4, frames: 4),
-                    (index: 5, frames: 32),
-                    (index: 6, frames: 4),
-                ],
-                config: (
-                    startup_frames: 1,
+                fps: 10,
+                indexes: [3, 4, 5, 5, 6, 6, 6, 6],
+                options: Some((
+                    startup_frames: 2,
                     active_frames: 2,
-                    recovery_frames: 32,
-                ),
+                    recovery_frames: 4,
+                    )
+                )
             ),
-            hitbox: ( x: 10., y: 10., length: 10., height: 10. ),
+            //movement
+            //spawn
         )
     )
 )

@@ -1,18 +1,14 @@
-use bevy::{asset::LoadedFolder, gizmos::aabb::AabbGizmoPlugin, prelude::*, window::{EnabledButtons, WindowResolution}};
+use std::collections::HashMap;
+
+use bevy::{prelude::*, window::{EnabledButtons, WindowResolution}, asset::LoadedFolder};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
-mod gamestate;
-use gamestate::*;
+mod characters;
+use characters::*;
 
-mod character;
-use character::{*, animation::*};
-
-mod collisions;
-use collisions::*;
-
-const MAX_WINDOW_HEIGHT: f32 = 1920.;
-const MAX_WINDOW_WIDTH: f32 = 1080.;
+const MAX_WINDOW_HEIGHT: f32 = 300.;
+const MAX_WINDOW_WIDTH: f32 = 300.;
 
 fn main() {
     App::new()
@@ -23,7 +19,7 @@ fn main() {
                 primary_window: Some(Window {
                     title: "Fight!".to_string(),
                     resolution: WindowResolution::new(MAX_WINDOW_HEIGHT, MAX_WINDOW_WIDTH),
-                    resizable: false,
+                    resizable: true,
                     enabled_buttons: EnabledButtons {
                         minimize: false,
                         maximize: false,
@@ -48,10 +44,12 @@ fn main() {
                 spawn_player
                 )
             )
+        .add_event::<HitEvent>()
         .add_systems(Update, (
                 keyboard_input_system,
                 execute_animations,
                 execute_hitboxes,
+                check_hitboxes,
                 debug
             ).run_if(in_state(GameState::Ready))
         )
@@ -61,68 +59,75 @@ fn main() {
 
 fn debug(
     mut gizmos: Gizmos,
-    query: Query<&Trigger>
+    query: Query<(&Hitbox, &Transform)>
 ) {
-    for hitbox in &query {
-        gizmos.rect_2d(Vec2::new(hitbox.x, hitbox.y), 0., Vec2::new(hitbox.length, hitbox.height), Color::RED);
+    for (hitbox, transform) in &query {
+        let pos = Vec2::new(transform.translation.x, transform.translation.y) + Vec2::new(hitbox.x, hitbox.y);
+        gizmos.rect_2d(pos, 0., Vec2::new(hitbox.length, hitbox.height), Color::RED);
     }
-
 }
 
-
-#[derive(Component)]
-pub struct Player;
-
-
-
-#[derive(Component)]
-pub struct InputController;
-
-pub fn spawn_camera(
-    mut commands: Commands,
-  ) {
+pub fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
 
-pub fn keyboard_input_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(
-        &mut Transform, &mut PlayerAnimationManagement        ), With<InputController>>,
+#[derive(States, Default, Debug, Clone, Eq, PartialEq, Hash)]
+pub enum GameState {
+    #[default]
+    Setup,
+    Ready,
+    Loading,
+    InGame,
+    Pause,
+    Win
+}
+
+#[derive(Resource, Default)]
+pub struct CharacterHandle(pub Handle<Character>);
+
+#[derive(Resource, Default)]
+pub struct CharacterFolder(pub Handle<LoadedFolder>);
+
+pub fn load_assets(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>
 ) {
-    //when pressing a button
-    //it needs to ask/check if move is legal
-    //it is legal if no move is active 
-    //or if it falls withing cancel and linking rules
-    for (mut transform, mut animation) in query.iter_mut() {
-        let mut movement = transform.translation;
-        if keyboard_input.pressed(KeyCode::KeyW) {
-            //jump
-        }
+    commands.insert_resource(CharacterFolder(asset_server.load_folder("characters")));
+}
 
-        if keyboard_input.pressed(KeyCode::KeyA) && animation.request_animation(AnimationState::Backward) {
-            movement.x -= 1.;           
+pub fn check_characters_assets(
+    mut next_state: ResMut<NextState<GameState>>,
+    sprite_folder: Res<CharacterFolder>,
+    mut events: EventReader<AssetEvent<LoadedFolder>>,
+) {
+    for event in events.read() {
+        if event.is_loaded_with_dependencies(&sprite_folder.0) {
+            next_state.set(GameState::Ready);
         }
-
-        if keyboard_input.pressed(KeyCode::KeyS) {
-            //crouch
-        }
-
-        if keyboard_input.pressed(KeyCode::KeyD) && animation.request_animation(AnimationState::Forward) {
-            movement.x += 1.;           
-        }
-
-        if keyboard_input.just_pressed(KeyCode::KeyZ) {
-            animation.request_animation(AnimationState::LightAttack);
-        }
-
-        if keyboard_input.just_pressed(KeyCode::KeyX) {
-            animation.request_animation(AnimationState::HeavyAttack);
-        }
-
-        transform.translation = movement;
     }
 }
 
+pub fn create_characters(
+    folder: &LoadedFolder,
+    character_assets: Res<Assets<Character>>,
+) -> Vec<Character> {
+    let mut characters = Vec::new();
+    // Build a texture atlas using the individual sprites
+    for handle in folder.handles.iter() {
+        let id = handle.id().typed_unchecked::<Character>();
+        let Some(character) = character_assets.get(id) else {
+            warn!(
+                "{:?} did not resolve to an `Image` asset.",
+                handle.path().unwrap()
+            );
+            continue;
+        };
+
+        characters.push(character.clone());
+    }
+
+    characters
+}
 
 pub fn spawn_player(
     mut commands: Commands,
@@ -145,9 +150,18 @@ pub fn spawn_player(
     let layout = TextureAtlasLayout::from_grid(Vec2::splat(64.), 3, 3, None, None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
-
+    let animations: HashMap<AnimationState, (AnimationManager, Option<Attack>)> =
+            HashMap::from([
+                (AnimationState::Idle, (AnimationManager::new(character.idle.clone()), None)),
+                (AnimationState::Forward, (AnimationManager::new(character.forward.clone()), None)),
+                (AnimationState::Backward, (AnimationManager::new(character.backward.clone()), None)),
+                (AnimationState::HeavyAttack, (AnimationManager::new(moveset.heavy.animation.clone()), Some(moveset.heavy.clone()))),
+                (AnimationState::LightAttack, (AnimationManager::new(moveset.light.animation.clone()), Some(moveset.light.clone())))
+            ]);
     commands.spawn(
-        (PlayerAnimationManagement::new(moveset),
+        (PlayerAnimationManagement::new(animations),
+         Speed(5.),
+         Velocity::default(),
          Name::new(name),
          Player,
          InputController,
@@ -163,3 +177,4 @@ pub fn spawn_player(
         )
     );
 }
+

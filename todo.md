@@ -16,4 +16,6 @@ if current is default and next Attack
 if current is finished and next is None
     current = default
 
+## Animations
+
 
