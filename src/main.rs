@@ -40,9 +40,10 @@ fn main() {
                 ..default()
             })
             )
-        .add_plugins(DebugPlugin { hitbox: true })
+        //.add_plugins(DebugPlugin { hitbox: true })
         .add_plugins(TitleScreenPlugin)
         .add_plugins(CharacterSelectionPlugin)
+        .add_systems(Update, gamepad_connections)
         .init_state::<GameState>()
         .init_asset::<Character>()
         .init_resource::<CharacterHandle>()
@@ -181,6 +182,7 @@ pub fn spawn_player(
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
 
+    commands.insert_resource(ClearColor(Color::GRAY));
     let loaded_folder = loaded_folders.get(&characters.0).unwrap();
     let pgs = create_characters(&loaded_folder, loader);
     

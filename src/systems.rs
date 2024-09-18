@@ -199,7 +199,7 @@ use bevy::input::gamepad::{GamepadConnection, GamepadEvent};
 
 
 
-fn gamepad_connections(
+pub fn gamepad_connections(
     mut commands: Commands,
     mut evr_gamepad: EventReader<GamepadEvent>,
     query: Query<(Entity, &InputController)>
