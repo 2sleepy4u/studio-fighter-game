@@ -2,13 +2,23 @@ use std::collections::HashMap;
 
 use bevy::{prelude::*, window::{EnabledButtons, WindowResolution}, asset::LoadedFolder};
 use bevy_common_assets::ron::RonAssetPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
-mod characters;
-use characters::*;
+
+mod systems;
+mod components;
+mod debug;
+mod title_screen;
+mod character_selection;
+
+use character_selection::CharacterSelectionPlugin;
+use systems::*;
+use components::*;
+use debug::*;
+use title_screen::*;
 
 const MAX_WINDOW_HEIGHT: f32 = 300.;
 const MAX_WINDOW_WIDTH: f32 = 300.;
+
 
 fn main() {
     App::new()
@@ -30,12 +40,16 @@ fn main() {
                 ..default()
             })
             )
+        .add_plugins(DebugPlugin { hitbox: true })
+        .add_plugins(TitleScreenPlugin)
+        .add_plugins(CharacterSelectionPlugin)
         .init_state::<GameState>()
-        .add_plugins(WorldInspectorPlugin::new())
-        //characters
-        .add_plugins(RonAssetPlugin::<Character>::new(&["ron"]))
         .init_asset::<Character>()
         .init_resource::<CharacterHandle>()
+        .add_event::<HitEvent>()
+        //characters
+        .add_plugins(RonAssetPlugin::<Character>::new(&["ron"]))
+
         .add_systems(OnEnter(GameState::Setup), load_assets)
         .add_systems(Update, check_characters_assets.run_if(in_state(GameState::Setup)))
 
@@ -44,28 +58,52 @@ fn main() {
                 spawn_player
                 )
             )
-        .add_event::<HitEvent>()
+
         .add_systems(Update, (
                 keyboard_input_system,
                 execute_animations,
                 execute_hitboxes,
                 check_hitboxes,
-                debug
+                health_ui
             ).run_if(in_state(GameState::Ready))
         )
         .run();
 }
 
-
-fn debug(
-    mut gizmos: Gizmos,
-    query: Query<(&Hitbox, &Transform)>
+fn health_ui(
+    mut commands: Commands,
+    query: Query<(&Name, &Health), With<Player>>
 ) {
-    for (hitbox, transform) in &query {
-        let pos = Vec2::new(transform.translation.x, transform.translation.y) + Vec2::new(hitbox.x, hitbox.y);
-        gizmos.rect_2d(pos, 0., Vec2::new(hitbox.length, hitbox.height), Color::RED);
+    for (name, health) in &query {
+        commands.spawn((
+            TextBundle::from_section(name, TextStyle {
+                font_size: 30.,
+                ..default()
+            })
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(0.),
+                left: Val::Px(0.),
+                ..default()
+            })
+
+        ));
+        commands.spawn((
+            TextBundle::from_section(health.value().to_string(), TextStyle {
+                font_size: 30.,
+                ..default()
+            })
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(0.),
+                right: Val::Px(0.),
+                ..default()
+            })
+        ));
     }
 }
+
+
 
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
@@ -77,10 +115,15 @@ pub enum GameState {
     Setup,
     Ready,
     Loading,
+
+    TitleScreen,
+    CharacterSelection,
+
     InGame,
     Pause,
     Win
 }
+
 
 #[derive(Resource, Default)]
 pub struct CharacterHandle(pub Handle<Character>);
@@ -102,7 +145,7 @@ pub fn check_characters_assets(
 ) {
     for event in events.read() {
         if event.is_loaded_with_dependencies(&sprite_folder.0) {
-            next_state.set(GameState::Ready);
+            next_state.set(GameState::TitleScreen);
         }
     }
 }
@@ -143,6 +186,7 @@ pub fn spawn_player(
     
     let character = &pgs.first().unwrap();
     let name = character.name.clone();
+    let hurtbox = character.hurtbox.clone();
     let moveset = character.moveset.clone();
     let path = &character.sprite_sheet;
     
@@ -153,6 +197,8 @@ pub fn spawn_player(
     let animations: HashMap<AnimationState, (AnimationManager, Option<Attack>)> =
             HashMap::from([
                 (AnimationState::Idle, (AnimationManager::new(character.idle.clone()), None)),
+                (AnimationState::Jump, (AnimationManager::new(character.jump.clone()), None)),
+                (AnimationState::Block, (AnimationManager::new(character.block.clone()), None)),
                 (AnimationState::Forward, (AnimationManager::new(character.forward.clone()), None)),
                 (AnimationState::Backward, (AnimationManager::new(character.backward.clone()), None)),
                 (AnimationState::HeavyAttack, (AnimationManager::new(moveset.heavy.animation.clone()), Some(moveset.heavy.clone()))),
@@ -160,11 +206,12 @@ pub fn spawn_player(
             ]);
     commands.spawn(
         (PlayerAnimationManagement::new(animations),
-         Speed(5.),
+         Speed(character.speed.clone()),
+         Health::new(character.health.clone()),
          Velocity::default(),
          Name::new(name),
          Player,
-         InputController,
+         hurtbox,
          TextureAtlas {
              layout: texture_atlas_layout.clone(),
              index: 0

@@ -1,5 +1,5 @@
 Character(
-    name: "pg",
+    name: "Test",
     health: 1000,
     speed: 5.,
     sprite_sheet: "sprites/full.png",
