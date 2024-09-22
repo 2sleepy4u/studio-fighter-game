@@ -40,11 +40,12 @@ fn title_screen_ui(
     mut commands: Commands
 ) {
     commands.spawn((
-        TextBundle::from_section("Super Studio Fighter X", 
+        TextBundle::from_section("Supa Studio Fighter X", 
                                  TextStyle { 
                                      font_size: 150., 
                                      font: asset_server.load("fonts/Act_Of_Rejection.ttf"),
-                                     ..default() }
+                                     ..default() 
+                                 }
         )
         .with_text_justify(JustifyText::Center)
         .with_style(Style {
@@ -53,7 +54,6 @@ fn title_screen_ui(
             ..default()
         })
     ));
-
 }
 
 fn despawn_all_with<C: Component>(
@@ -62,7 +62,6 @@ fn despawn_all_with<C: Component>(
 )
 {
     query.iter().for_each(|x| commands.entity(x).despawn());
-
 }
 
 
