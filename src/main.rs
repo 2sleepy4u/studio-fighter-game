@@ -11,7 +11,7 @@ mod title_screen;
 mod character_selection;
 mod hitbox;
 
-use character_selection::CharacterSelectionPlugin;
+use character_selection::{CharacterSelectionPlugin, SelectedCharacter};
 use systems::*;
 use components::*;
 use debug::*;
@@ -29,7 +29,7 @@ fn main() {
             .set(ImagePlugin::default_nearest())
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "Fight!".to_string(),
+                    title: "Supa Studio Fighter X!".to_string(),
                     resolution: WindowResolution::new(MAX_WINDOW_HEIGHT, MAX_WINDOW_WIDTH),
                     resizable: true,
                     enabled_buttons: EnabledButtons {
@@ -45,19 +45,17 @@ fn main() {
         .add_plugins(DebugPlugin { hitbox: true, inspector: true })
         .add_plugins(TitleScreenPlugin)
         .add_plugins(CharacterSelectionPlugin)
-        .add_systems(Update, gamepad_connections)
         .add_plugins(HitManagementPlugin)
+
+        //.add_systems(Update, gamepad_connections)
         .init_state::<GameState>()
         .init_asset::<Character>()
         .init_resource::<CharacterHandle>()
-        .add_event::<HitEvent>()
-        //characters
         .add_plugins(RonAssetPlugin::<Character>::new(&["ron"]))
-
         .add_systems(OnEnter(GameState::Setup), load_assets)
         .add_systems(Update, check_characters_assets.run_if(in_state(GameState::Setup)))
 
-        .add_systems(OnEnter(GameState::Ready), (
+        .add_systems(OnEnter(GameState::InGame), (
                 spawn_camera, 
                 spawn_player
                 )
@@ -66,10 +64,61 @@ fn main() {
         .add_systems(Update, (
                 keyboard_input_system,
                 execute_animations,
-                health_ui
-            ).run_if(in_state(GameState::Ready))
+                health_ui,
+            ).run_if(in_state(GameState::InGame))
         )
         .run();
+}
+
+pub fn spawn_player_after_selection(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    query: Query<&SelectedCharacter, With<Player>>
+) {
+    commands.insert_resource(ClearColor(Color::GRAY));
+    
+    for character in &query {
+        let character = &character.0;
+        let name = character.name.clone();
+        let hurtbox = character.hurtbox.clone();
+        let moveset = character.moveset.clone();
+        let path = &character.sprite_sheet;
+        
+        let texture: Handle<Image> = asset_server.load(path);
+        let layout = TextureAtlasLayout::from_grid(Vec2::splat(64.), 3, 3, None, None);
+        let texture_atlas_layout = texture_atlas_layouts.add(layout);
+
+        let animations: HashMap<AnimationState, (AnimationManager, Option<Attack>)> =
+                HashMap::from([
+                    (AnimationState::Idle, (AnimationManager::new(character.idle.clone()), None)),
+                    (AnimationState::Jump, (AnimationManager::new(character.jump.clone()), None)),
+                    (AnimationState::Block, (AnimationManager::new(character.block.clone()), None)),
+                    (AnimationState::Forward, (AnimationManager::new(character.forward.clone()), None)),
+                    (AnimationState::Backward, (AnimationManager::new(character.backward.clone()), None)),
+                    (AnimationState::HeavyAttack, (AnimationManager::new(moveset.heavy.animation.clone()), Some(moveset.heavy.clone()))),
+                    (AnimationState::LightAttack, (AnimationManager::new(moveset.light.animation.clone()), Some(moveset.light.clone())))
+                ]);
+        commands.spawn(
+            (PlayerAnimationManagement::new(animations),
+             Speed(character.speed.clone()),
+             Health::new(character.health.clone()),
+             Velocity::default(),
+             Name::new(name),
+             Player,
+             hurtbox,
+             TextureAtlas {
+                 layout: texture_atlas_layout.clone(),
+                 index: 0
+             },
+             SpriteBundle {
+                transform: Transform::from_scale(Vec3::splat(6.0)),
+                texture: texture.clone(),
+                ..default()
+            },
+            )
+        );
+    }
 }
 
 fn health_ui(
@@ -123,7 +172,7 @@ pub enum GameState {
 
     InGame,
     Pause,
-    Win
+    GameEnded
 }
 
 
