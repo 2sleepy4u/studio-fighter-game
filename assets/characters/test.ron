@@ -3,6 +3,7 @@ Character(
     health: 1000,
     speed: 5.,
     sprite_sheet: "sprites/full.png",
+    sprite_face: "sprites/frog2.png",
     hurtbox: ( x: -30., y: 0., length: 110., height: 230. ),
     idle: (
         fps: 20,

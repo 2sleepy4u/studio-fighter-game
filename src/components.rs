@@ -10,6 +10,7 @@ pub const MAX_FRAME_RATE: u8 = 60;
 pub struct Character {
     pub name: String,
     pub sprite_sheet: String,
+    pub sprite_face: String,
     pub speed: f32,
     pub health: u32,
     pub hurtbox: Hurtbox,

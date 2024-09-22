@@ -3,6 +3,7 @@ Character(
     health: 1000,
     speed: 5.,
     sprite_sheet: "sprites/full.png",
+    sprite_face: "sprites/frog2.png",
     hurtbox: ( x: -30., y: 0., length: 110., height: 230. ),
     idle: (
         fps: 20,
@@ -42,8 +43,11 @@ Character(
                     )
                 )
             ),
-            //movement
-            //spawn
+            //effect: Enum => it is then used in-code to denote custom attacks
+            //so no big standard structure is needed and everything could eventually be implemented
+            //like movement, spawn stuff, activation dependencies (can use this attack only after another attack or with special conditions)
+            //also buff and debuff could be implemented this way as custom effect
+
         ),
         heavy: (
             damage: 80,
