@@ -9,12 +9,14 @@ mod components;
 mod debug;
 mod title_screen;
 mod character_selection;
+mod hitbox;
 
 use character_selection::CharacterSelectionPlugin;
 use systems::*;
 use components::*;
 use debug::*;
 use title_screen::*;
+use hitbox::*;
 
 const MAX_WINDOW_HEIGHT: f32 = 300.;
 const MAX_WINDOW_WIDTH: f32 = 300.;
@@ -44,6 +46,7 @@ fn main() {
         .add_plugins(TitleScreenPlugin)
         .add_plugins(CharacterSelectionPlugin)
         .add_systems(Update, gamepad_connections)
+        .add_plugins(HitManagementPlugin)
         .init_state::<GameState>()
         .init_asset::<Character>()
         .init_resource::<CharacterHandle>()
@@ -63,8 +66,6 @@ fn main() {
         .add_systems(Update, (
                 keyboard_input_system,
                 execute_animations,
-                execute_hitboxes,
-                check_hitboxes,
                 health_ui
             ).run_if(in_state(GameState::Ready))
         )

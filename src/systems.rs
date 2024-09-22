@@ -1,45 +1,11 @@
-use bevy::math::bounding::{Aabb2d, IntersectsVolume};
 use bevy::prelude::*;
+use bevy::input::gamepad::{GamepadConnection, GamepadEvent};
 
 use crate::components::*;
 
-
-pub fn check_hits (
-    mut target: Query<(Entity, &Hurtbox, &GlobalTransform)>,
-    source: Query<(Entity, &Hitbox, &Transform)>,
-    mut ev_collision: EventWriter<HitEvent>,
-) {
-    for (source_entity, source_trigger, source_transform) in source.iter() {
-        let position = 
-            Vec2::new(source_transform.translation.x, source_transform.translation.y)
-            +
-            Vec2::new(source_trigger.x, source_trigger.y);
-        let size = Vec2::new(source_trigger.x, source_trigger.y);
-        let first_collider = Aabb2d::new(position, size);
-
-        for (target_entity, target_trigger, target_transform) in target.iter_mut() {
-            let position = 
-                Vec2::new(target_transform.compute_transform().translation.x, target_transform.compute_transform().translation.y)
-                +
-                Vec2::new(source_trigger.x, source_trigger.y);
- 
-            let size = Vec2::new(target_trigger.x, target_trigger.y);
-            let second_collider = Aabb2d::new(position, size);
-
-            if source_entity != target_entity && first_collider.intersects(&second_collider) {
-                ev_collision.send(HitEvent { 
-                    target: target_entity,
-                    source: source_entity,
-                });
-            }
-        }
-    }
-}
-
-
 pub fn execute_animations(
     time: Res<Time>,
-    mut query: Query<( &mut PlayerAnimationManagement, &mut TextureAtlas)>,
+    mut query: Query<(&mut PlayerAnimationManagement, &mut TextureAtlas)>,
 ) {
     for (mut player_animation, mut atlas) in &mut query {
         //scope to drop automatically anim so the mutable reference stop existing
@@ -78,56 +44,7 @@ pub fn execute_animations(
 }
 
 
-pub fn execute_hitboxes (
-    mut commands: Commands,
-    query: Query<(Entity, &PlayerAnimationManagement)>,
-) {
-    for (entity, player_animation) in &query {
-        let (anim, attack) = &player_animation.get_current_animation();
-        if anim.is_within_active() {
-            //if is still runing then check for hitboxes
-            //spawn hitbox
-            if let Some(attack) = attack.clone() {
-                //add attack to trigger or just check what type of attack active in other
-                //player?
-                commands.entity(entity).insert(attack.hitbox);
-            }
-        } else {
-            commands.entity(entity).remove::<Hitbox>();
-        }
-    }
-}
 
-
-pub fn check_hitboxes (
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut Health, &PlayerAnimationManagement)>,
-    mut ev_collision: EventReader<HitEvent>,
-) {
-    for ev in ev_collision.read() {
-        if let Some((entity, mut hp, player_aniation)) = query.iter_mut().find(|(entity, _, _)| &ev.target == entity) {
-            let attack = player_aniation.get_current_animation().1.clone().unwrap();
-
-            hp.damage(attack.damage);
-
-            commands.entity(entity)
-                .remove::<Hitbox>()
-                .insert(HitStun::new(attack.hit_stun_frames, MAX_FRAME_RATE));
-        }
-    }
-}
-
-//if the hitstun timer is finished then it removes it
-pub fn check_hitstun(
-    mut commands: Commands,
-    query: Query<(Entity, &HitStun)>
-) {
-    for (entity, hitstun) in &query {
-        if hitstun.is_finished() {
-            commands.entity(entity).remove::<HitStun>();
-        }
-    }
-}
 
 pub fn keyboard_input_system(
     time: Res<Time>,
@@ -195,7 +112,7 @@ pub fn keyboard_input_system(
     }
 }
 
-use bevy::input::gamepad::{GamepadConnection, GamepadEvent};
+
 
 
 
@@ -228,49 +145,43 @@ pub fn gamepad_connections(
         }
     }
 }
-/*
 
-fn gamepad_input(
-    axes: Res<Axis<GamepadAxis>>,
-    buttons: Res<ButtonInput<GamepadButton>>,
+#[derive(Component)]
+pub struct HealthBar(pub Gamepad);
+
+pub fn health_bar(
+    mut commands: Commands,
+    query: Query<(&Name, &InputController, &Health), With<Player>>
 ) {
-    let Some(&MyGamepad(gamepad)) = my_gamepad.as_deref() else {
-        // no gamepad is connected
-        return;
-    };
-
-    // The joysticks are represented using a separate axis for X and Y
-    let axis_lx = GamepadAxis {
-        gamepad, axis_type: GamepadAxisType::LeftStickX
-    };
-    let axis_ly = GamepadAxis {
-        gamepad, axis_type: GamepadAxisType::LeftStickY
-    };
-
-    if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
-        // combine X and Y into one vector
-        let left_stick = Vec2::new(x, y);
-
-        // Example: check if the stick is pushed up
-        if left_stick.length() > 0.9 && left_stick.y > 0.5 {
-            // do something
-        }
-    }
-
-    // In a real game, the buttons would be configurable, but here we hardcode them
-    let jump_button = GamepadButton {
-        gamepad, button_type: GamepadButtonType::South
-    };
-    let heal_button = GamepadButton {
-        gamepad, button_type: GamepadButtonType::East
-    };
-
-    if buttons.just_pressed(jump_button) {
-        // button just pressed: make the player jump
-    }
-
-    if buttons.pressed(heal_button) {
-        // button being held down: heal the player
+    let player_number = query.iter().count();
+    let division = 100 / player_number;
+    for (name, input_controller, health) in &query {
+        commands.spawn(NodeBundle {
+            style: Style {
+                justify_self: JustifySelf::Start,
+                ..default()
+            },
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn((
+                HealthBar(input_controller.0),
+                NodeBundle {
+                    style: Style {
+                        width: Val::Percent(division as f32),
+                        height: Val::Px(100.0),
+                        position_type: PositionType::Relative,
+                        top: Val::Px(10.),
+                        left: Val::Px(10.),
+                        ..default()
+                    },
+                    ..default()
+                }
+                )
+            );
+            parent.spawn(
+                TextBundle::from_section(name, TextStyle::default())
+            );
+        });
     }
 }
-*/
