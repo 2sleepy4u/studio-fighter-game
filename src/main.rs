@@ -42,7 +42,7 @@ fn main() {
                 ..default()
             })
             )
-        //.add_plugins(DebugPlugin { hitbox: true })
+        .add_plugins(DebugPlugin { hitbox: true, inspector: true })
         .add_plugins(TitleScreenPlugin)
         .add_plugins(CharacterSelectionPlugin)
         .add_systems(Update, gamepad_connections)

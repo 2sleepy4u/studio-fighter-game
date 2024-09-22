@@ -8,18 +8,22 @@ fn in_debug(debug: bool) -> impl Condition<()> {
     IntoSystem::into_system(move || { debug })
 }
 
+#[derive(Default)]
 pub struct DebugPlugin {
+    pub inspector: bool,
     pub hitbox: bool
 }
 
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(WorldInspectorPlugin::new())
-            .add_systems(Update, (
+        app.add_systems(Update, (
                     debug_hitbox,
                     debug_hurtbox,
                 ).run_if(in_debug(self.hitbox))
-            );
+           );
+        if self.inspector {
+            app.add_plugins(WorldInspectorPlugin::new());
+        }
     }
 }
 
