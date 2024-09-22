@@ -32,11 +32,11 @@ impl Plugin for CharacterSelectionPlugin {
 struct Selected(pub Gamepad);
 
 
-#[derive(Component, Clone)]
+#[derive(Component, Clone, Debug)]
 pub struct SelectedCharacter(pub Character);
 
 
-#[derive(Component, PartialEq, Eq)]
+#[derive(Component, PartialEq, Eq, Debug)]
 struct CharacterSquare(u8);
 
 impl CharacterSquare {
@@ -44,20 +44,24 @@ impl CharacterSquare {
         Self(value)
     }
 
+    fn value(&self) -> u8 {
+        self.0
+    }
+
     fn next(&mut self, max: u8) {
         self.0 = (self.0 + 1).clamp(0, max);
     }
 
     fn prev(&mut self, max: u8) {
-        self.0 = (self.0 - 1).clamp(0, max);
+        self.0 = self.0.checked_sub(1).unwrap_or(0).clamp(0, max);
     }
 
     fn up(&mut self, max: u8, char_per_row: u8) {
-        self.0 = (self.0 - char_per_row).clamp(0, max);
+        self.0 = self.0.checked_sub(char_per_row).unwrap_or(0).clamp(0, max);
     }
 
     fn down(&mut self, max: u8, char_per_row: u8) {
-        self.0 = (self.0 - char_per_row).clamp(0, max)
+        self.0 = (self.0 + char_per_row).clamp(0, max)
     }
 }
 
@@ -91,13 +95,14 @@ fn character_selection_ui(
                 let x = x as u8;
                 let col = x % MAX_COLUMNS;
                 let row = x / 4;
-                let character = &pgs.get(x as usize).unwrap();
+                let character = pgs.get(x as usize).unwrap().clone();
                 let character_name = &character.name;
                 let texture = asset_server.load(&character.sprite_face);
                 //add character name as text
                 parent.spawn((
                         Name::new(character_name.clone()),
                         CharacterSquare::new(x),
+                        SelectedCharacter(character.clone()),
                         NodeBundle {
                             background_color: BackgroundColor(Color::RED),
                             style: Style {
@@ -201,7 +206,7 @@ fn gamepad_input(
             }
 
             if buttons.just_pressed(select_button) {
-                if let Some((_, _, sel_character)) = character_squares.iter().find(|(_, char_pos, _)| **char_pos == *character_square) {
+                if let Some((_, _, sel_character)) = character_squares.iter().find(|(_, char_pos, _)| char_pos.value() == character_square.value()) {
                     commands.entity(entity).insert(sel_character.clone());
                 }
             }
